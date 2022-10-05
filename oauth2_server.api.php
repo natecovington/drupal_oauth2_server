@@ -21,31 +21,39 @@ function hook_oauth2_server_pre_authorize() {
 /**
  * Allow modules to supply additional claims.
  *
- * @param array[] $context
- *   Array of account and requested scopes.
+ * @param \Drupal\user\UserInterface $account
+ *   The user account object.
+ * @param array $requested_scopes
+ *   An array of requested scopes.
  *
  * @return array
  *   An array of additional claims.
  */
-function hook_oauth2_server_user_claims(array &$context) {
-  /** @var \Drupal\user\UserInterface $account */
-  $account = $context['account'];
-  return [
-    'mobile_number' => $account->get('field_mobile_number')->getValue(),
-    'mobile_number_verified' => $account->get('mobile_number_verified')->getValue(),
-  ];
+function hook_oauth2_server_claims(\Drupal\user\UserInterface $account, array $requested_scopes) {
+  $claims = [];
+  if (in_array('phone', $requested_scopes)) {
+    $claims = [
+      'phone_number' => $account->get('field_phone_number')->getValue(),
+      'phone_number_verified' => $account->get('field_phone_number_verified')->getValue(),
+    ];
+  }
+  return $claims;
 }
 
 /**
  * Perform alterations on the available claims.
  *
- * @param array[] $context
- *   Array of claims, account and requested scopes.
+ * @param array $claims
+ *   An array of claims.
+ * @param \Drupal\user\UserInterface $account
+ *   A user account object.
+ * @param array $requested_scopes
+ *   An array of requested scopes.
  */
-function hook_oauth2_server_user_claims_alter(array &$context) {
-  if (in_array('phone', $context['requested_scopes'])) {
-    $context['claims']['phone_number'] = '123456';
-    $context['claims']['phone_number_verified'] = FALSE;
+function hook_oauth2_server_user_claims_alter(array $claims, \Drupal\user\UserInterface $account, array $requested_scopes) {
+  if (in_array('phone', $requested_scopes)) {
+    $claims['phone_number'] = '123456';
+    $claims['phone_number_verified'] = FALSE;
   }
 }
 

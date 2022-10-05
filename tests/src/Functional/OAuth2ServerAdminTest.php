@@ -51,7 +51,6 @@ class OAuth2ServerAdminTest extends BrowserTestBase {
       'name' => $this->randomString(),
       'client_id' => $client_id,
       'redirect_uri' => 'http://localhost',
-      'require_client_secret' => TRUE,
       'client_secret' => $secret,
     ], t('Save client'));
 
@@ -72,18 +71,9 @@ class OAuth2ServerAdminTest extends BrowserTestBase {
     $client = $entity_type_manager->getStorage('oauth2_server_client')->load($client_id);
     $this->assertEqual($old_hashed_secret, $client->client_secret, 'Secret is not changed accidentally when editing the client.');
 
-    // Edit the client, and set an empty secret.
-    $this->updateClient($client, [
-      'require_client_secret' => FALSE,
-    ]);
-    $entity_type_manager->getStorage('oauth2_server_client')->resetCache();
-    $client = $entity_type_manager->getStorage('oauth2_server_client')->load($client_id);
-    $this->assertTrue($client->client_secret === '', 'Secret is set to empty if it is not required.');
-
     // Edit the client, and set a new, non-empty secret.
     $new_secret = $this->randomString(32);
     $this->updateClient($client, [
-      'require_client_secret' => TRUE,
       'client_secret' => $new_secret,
     ]);
     $entity_type_manager->getStorage('oauth2_server_client')->resetCache();

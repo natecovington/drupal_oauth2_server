@@ -3,7 +3,10 @@
 namespace Drupal\oauth2_server\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Logger\LoggerChannelFactory;
+use Drupal\Core\PrivateKey;
 use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\State\State;
 use Drupal\Core\Url;
 use Drupal\Core\Site\Settings;
 use Drupal\Component\Utility\Crypt;
@@ -26,20 +29,55 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 class OAuth2Controller extends ControllerBase {
 
   /**
-   * The OAuth2Storage.
+   * The OAuth2Storage service.
    *
    * @var \Drupal\oauth2_server\OAuth2StorageInterface
    */
   protected $storage;
 
   /**
-   * Constructs a new \Drupal\oauth2_server\Controller\OAuth2Controller object.
+   * The state service.
+   *
+   * @var \Drupal\Core\State\State
+   */
+  protected $state;
+
+  /**
+   * The private key service.
+   *
+   * @var \Drupal\Core\PrivateKey
+   */
+  protected $privateKey;
+
+  /**
+   * The logger channel.
+   *
+   * @var \Drupal\Core\Logger\LoggerChannel|\Drupal\Core\Logger\LoggerChannelInterface
+   */
+  protected $logger;
+
+  /**
+   * The class constructor.
    *
    * @param \Drupal\oauth2_server\OAuth2StorageInterface $oauth2_storage
-   *   The OAuth2 storage object.
+   *   The oauth2 storage service.
+   * @param \Drupal\Core\State\State $state
+   *   The state service.
+   * @param \Drupal\Core\PrivateKey $private_key
+   *   The private key service.
+   * @param \Drupal\Core\Logger\LoggerChannelFactory $logger_factory
+   *   The logger factory service.
    */
-  public function __construct(OAuth2StorageInterface $oauth2_storage) {
+  public function __construct(
+      OAuth2StorageInterface $oauth2_storage,
+      State $state,
+      PrivateKey $private_key,
+      LoggerChannelFactory $logger_factory
+  ) {
     $this->storage = $oauth2_storage;
+    $this->state = $state;
+    $this->privateKey = $private_key;
+    $this->logger = $logger_factory->get('oauth2_server');
   }
 
   /**
@@ -47,7 +85,10 @@ class OAuth2Controller extends ControllerBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('oauth2_server.storage')
+      $container->get('oauth2_server.storage'),
+      $container->get('state'),
+      $container->get('private_key'),
+      $container->get('logger.factory')
     );
   }
 
@@ -263,6 +304,46 @@ class OAuth2Controller extends ControllerBase {
   }
 
   /**
+   * Revoke.
+   *
+   * @param \Drupal\Core\Routing\RouteMatchInterface $route_match
+   *   The route match service.
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The current request object.
+   *
+   * @return \OAuth2\HttpFoundationBridge\Response
+   *   A response object.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  public function revoke(RouteMatchInterface $route_match, Request $request) {
+    $bridgeRequest = BridgeRequest::createFromRequest($request);
+    $client_credentials = Utility::getClientCredentials($bridgeRequest);
+
+    // Get the client and use it to load the server and initialize the server.
+    $client = FALSE;
+    if ($client_credentials) {
+      /** @var \Drupal\oauth2_server\ClientInterface[] $clients */
+      $clients = $this->entityTypeManager()->getStorage('oauth2_server_client')
+        ->loadByProperties(['client_id' => $client_credentials['client_id']]);
+      if ($clients) {
+        $client = reset($clients);
+      }
+    }
+
+    $server = NULL;
+    if ($client) {
+      $server = $client->getServer();
+    }
+
+    $response = new BridgeResponse();
+    $oauth2_server = Utility::startServer($server, $this->storage);
+    $oauth2_server->handleRevokeRequest($bridgeRequest, $response);
+    return $response;
+  }
+
+  /**
    * Certificates.
    *
    * @param \Drupal\Core\Routing\RouteMatchInterface $route_match
@@ -301,29 +382,32 @@ class OAuth2Controller extends ControllerBase {
 
     $cert = openssl_x509_read($keys['public_key']);
     $publicKey = openssl_get_publickey($cert);
+    // @todo This function has been deprecated in PHP 8.0.0 and can then be removed.
     openssl_x509_free($cert);
     $keyDetails = openssl_pkey_get_details($publicKey);
+    // @todo This function has been deprecated in PHP 8.0.0 and can then be removed.
     openssl_pkey_free($publicKey);
-    $jwk['e'] = base64_encode($keyDetails['rsa']['e']);
-    $jwk['n'] = base64_encode($keyDetails['rsa']['n']);
+    $jwk['e'] = self::base64urlEncode($keyDetails['rsa']['e']);
+    $jwk['n'] = self::base64urlEncode($keyDetails['rsa']['n']);
     $jwk['mod'] = self::base64urlEncode($keyDetails['rsa']['n']);
     $jwk['exp'] = self::base64urlEncode($keyDetails['rsa']['e']);
-    $jwk['x5c'][] = self::base64urlEncode(self::pem2der($keys['public_key']));
+    // @see https://datatracker.ietf.org/doc/html/rfc7517#section-4.7
+    $jwk['x5c'][] = base64_encode(self::pem2der($keys['public_key']));
     $jwk['kty'] = 'RSA';
     $jwk['use'] = "sig";
     $jwk['alg'] = "RS256";
     $jwk['kid'] = Crypt::hmacbase64(
-      \Drupal::state()->get('oauth2_server.next_certificate_id', 0),
+      $this->state()->get('oauth2_server.next_certificate_id', 0),
       Settings::getHashSalt()
     );
 
     $response = ["keys" => [$jwk]];
-    if (openssl_error_string()) {
-      $this->logger->error("Error: @message", [
-        "@code" => openssl_error_string(),
-      ]);
-      throw new HttpException(522, "SSL subsytem failure detected.");
-    }
+//    if (openssl_error_string()) {
+//      $this->logger->error("Error: @message", [
+//        "@code" => openssl_error_string(),
+//      ]);
+//      throw new HttpException(522, "SSL subsytem failure detected.");
+//    }
 
     return new JsonResponse($response, 200);
   }

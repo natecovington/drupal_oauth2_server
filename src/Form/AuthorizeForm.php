@@ -2,8 +2,11 @@
 
 namespace Drupal\oauth2_server\Form;
 
+use Drupal\Core\Config\ConfigFactory;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Session\AccountProxy;
+use Drupal\Core\StringTranslation\TranslationManager;
 use OAuth2\HttpFoundationBridge\Response as BridgeResponse;
 use OAuth2\HttpFoundationBridge\Request as BridgeRequest;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -25,13 +28,56 @@ class AuthorizeForm extends FormBase {
   protected $storage;
 
   /**
+   * The current user.
+   *
+   * @var \Drupal\Core\Session\AccountProxy
+   */
+  protected $account;
+
+  /**
+   * The translation manager.
+   *
+   * @var \Drupal\Core\StringTranslation\TranslationManager
+   */
+  protected $translation;
+
+  /**
+   * Site config.
+   *
+   * @var \Drupal\Core\Config\Config|\Drupal\Core\Config\ImmutableConfig
+   */
+  protected $siteConfig;
+
+  /**
+   * Theme config.
+   *
+   * @var \Drupal\Core\Config\Config|\Drupal\Core\Config\ImmutableConfig
+   */
+  protected $themeConfig;
+
+  /**
    * Authorize Form constructor.
    *
    * @param \Drupal\oauth2_server\OAuth2StorageInterface $oauth2_storage
    *   The OAuth2 storage object.
+   * @param \Drupal\Core\Session\AccountProxy $account
+   *   The current user account object.
+   * @param \Drupal\Core\StringTranslation\TranslationManager $translation_manager
+   *   The translation manager object.
+   * @param \Drupal\Core\Config\ConfigFactory $config_factory
+   *   The config factory object.
    */
-  public function __construct(OAuth2StorageInterface $oauth2_storage) {
+  public function __construct(
+      OAuth2StorageInterface $oauth2_storage,
+      AccountProxy $account,
+      TranslationManager $translation_manager,
+      ConfigFactory $config_factory
+  ) {
     $this->storage = $oauth2_storage;
+    $this->account = $account;
+    $this->translation = $translation_manager;
+    $this->siteConfig = $config_factory->get('system.site');
+    $this->themeConfig = $config_factory->get('system.theme.global');
   }
 
   /**
@@ -39,7 +85,10 @@ class AuthorizeForm extends FormBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('oauth2_server.storage')
+      $container->get('oauth2_server.storage'),
+      $container->get('current_user'),
+      $container->get('string_translation'),
+      $container->get('config.factory')
     );
   }
 
@@ -54,7 +103,34 @@ class AuthorizeForm extends FormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state, $context = []) {
-    $form['#title'] = $this->t('Authorize @client to use your account?', ['@client' => $context['client']->label()]);
+    $client = $context['client'];
+
+    $form['#title'] = $this->t('Authorize @client_label to use your account?', ['@client_label' => $client->label()]);
+
+    if ($client->logo_uri) {
+      $form['header'] = [
+        '#markup' => '
+    <div class="oauth2-server--auth-dialog-header">
+        <div class="item">
+          <img src="' . $client->logo_uri . '" alt="" width="50" height="50">
+        </div>
+        <div class="item check-mark">
+          <img src="' . base_path() . 'core/misc/icons/73b355/check.svg" alt="" width="25" height="25">
+        </div>
+        <div class="item">
+          <img src="' . ($this->themeConfig->get('logo.path') ? file_create_url($this->themeConfig->get('logo.path')) : base_path() . 'core/misc/logo/drupal-logo.svg') . '" alt="" width="50" height="50">
+        </div>
+    </div>',
+      ];
+      $form['user'] = [
+        '#markup' => '
+    <div class="oauth2-server--auth-dialog-user">
+        <div class="item"><strong>' . $this->t('@client_name', ['@client_name' => $client->name]) . '</strong></div>
+        <div class="item">' . $this->t('wants to access your <strong>@username</strong> account', ['@username' => $this->account->getDisplayName()]) . '</div>
+    </div>',
+      ];
+      $form['#attached']['library'][] = 'oauth2_server/authorize';
+    }
 
     $list = [];
     foreach ($context['scopes'] as $scope) {
@@ -67,17 +143,65 @@ class AuthorizeForm extends FormBase {
       '#value' => $context['client'],
     ];
     $form['scopes'] = [
-      '#title' => $this->t('This application will be able to:'),
+      '#title' => $this->t('This application will be able to access the following scopes which might include access to personal data:'),
       '#theme' => 'item_list',
       '#items' => $list,
       '#type' => 'ul',
     ];
+
+    $form['disclaimer'] = [
+      '#prefix' => '<p>',
+      '#suffix' => '</p>',
+      '#markup' => $this->t(
+        'If you wish to continue, you must consent to <strong>@sitename</strong> sharing your <em>name</em>, <em>email address</em>, <em>language settings</em> and <em>profile picture</em> with <strong>@client_name</strong>.',
+        [
+          '@sitename' => $this->siteConfig->get('name'),
+          '@client_name' => $client->name,
+          '@policy_uri' => $client->policy_uri,
+          '@tos_uri' => $client->tos_uri,
+        ]
+      ),
+    ];
+    if ($client->policy_uri && $client->tos_uri) {
+      $form['disclaimer']['#markup'] .= $this->t(
+        'Before using <strong>@client_name</strong>, you can read the <a href="@policy_uri" target="_blank">privacy policy</a> and the <a href="@tos_uri" target="_blank">terms of service</a> that apply to it.',
+        [
+          '@sitename' => $this->siteConfig->get('name'),
+          '@client_name' => $client->name,
+          '@policy_uri' => $client->policy_uri,
+          '@tos_uri' => $client->tos_uri,
+        ]
+      );
+    }
+    elseif ($client->policy_uri) {
+      $form['disclaimer']['#markup'] .= $this->t(
+        'Before using <strong>@client_name</strong>, you can read the <a href="@tos_uri" target="_blank">terms of service</a> that apply to it.',
+        [
+          '@sitename' => $this->siteConfig->get('name'),
+          '@client_name' => $client->name,
+          '@policy_uri' => $client->policy_uri,
+          '@tos_uri' => $client->tos_uri,
+        ]
+      );
+    }
+    elseif ($client->tos_uri) {
+      $form['disclaimer']['#markup'] .= $this->t(
+        'Before using <strong>@client_name</strong>, you can read the <a href="@policy_uri" target="_blank">privacy policy</a> that applies to it.',
+        [
+          '@sitename' => $this->siteConfig->get('name'),
+          '@client_name' => $client->name,
+          '@policy_uri' => $client->policy_uri,
+          '@tos_uri' => $client->tos_uri,
+        ]
+      );
+    }
+
     $form['actions'] = [
       '#type' => 'actions',
     ];
     $form['actions']['submit'] = [
       '#type' => 'submit',
-      '#value' => t('Yes, I authorize this request.'),
+      '#value' => t('Yes, I authorize this request'),
       '#authorized' => TRUE,
     ];
     $form['actions']['cancel'] = [
@@ -85,6 +209,21 @@ class AuthorizeForm extends FormBase {
       '#value' => t('Cancel'),
       '#authorized' => FALSE,
     ];
+    if ($client->redirect_uri) {
+      $redirect_uris = explode("\r\n", trim($client->redirect_uri));
+      $redirect_uris_string = implode(' or ', $redirect_uris);
+      $form['actions']['explanation'] = [
+        "#markup" => '<p>' . $this->translation->formatPlural(
+          count($redirect_uris),
+          'Authorizing will redirect to<br><strong>:client_uri</strong>',
+          'Authorizing will redirect to one of<br><strong>:client_uris</strong>',
+          [
+            ':client_uri' => array_shift($redirect_uris),
+            ':client_uris' => $redirect_uris_string,
+          ]
+        ) . '</p>',
+      ];
+    }
     return $form;
   }
 

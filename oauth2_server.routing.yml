@@ -2,13 +2,13 @@
 oauth2_server.authorize:
   path: '/oauth2/authorize'
   defaults:
-     _controller: 'Drupal\oauth2_server\Controller\OAuth2Controller::authorize'
+     _controller: '\Drupal\oauth2_server\Controller\OAuth2Controller::authorize'
   requirements:
     _permission: 'use oauth2 server'
 oauth2_server.token:
   path: '/oauth2/token'
   defaults:
-     _controller: 'Drupal\oauth2_server\Controller\OAuth2Controller::token'
+     _controller: '\Drupal\oauth2_server\Controller\OAuth2Controller::token'
   requirements:
     _permission: 'use oauth2 server'
   options:
@@ -16,33 +16,33 @@ oauth2_server.token:
 oauth2_server.tokens:
   path: '/oauth2/tokens/{oauth2_server_token}'
   defaults:
-     _controller: 'Drupal\oauth2_server\Controller\OAuth2Controller::tokens'
+     _controller: '\Drupal\oauth2_server\Controller\OAuth2Controller::tokens'
   requirements:
     _permission: 'use oauth2 server'
 oauth2_server.userinfo:
   path: '/oauth2/UserInfo'
   defaults:
-     _controller: 'Drupal\oauth2_server\Controller\OAuth2Controller::userInfo'
+     _controller: '\Drupal\oauth2_server\Controller\OAuth2Controller::userInfo'
   options:
     _auth: [ 'oauth2' ]
+  requirements:
+    _permission: 'use oauth2 server'
+oauth2_server.revoke:
+  path: '/oauth2/revoke'
+  defaults:
+    _controller: '\Drupal\oauth2_server\Controller\OAuth2Controller::revoke'
   requirements:
     _permission: 'use oauth2 server'
 oauth2_server.certificates:
   path: '/oauth2/certificates'
   defaults:
-     _controller: 'Drupal\oauth2_server\Controller\OAuth2Controller::certificates'
+     _controller: '\Drupal\oauth2_server\Controller\OAuth2Controller::certificates'
   requirements:
     _access: 'TRUE'
 oauth2_server.jwk:
   path: '/oauth2/jwk'
   defaults:
-     _controller: 'Drupal\oauth2_server\Controller\OAuth2Controller::jwk'
-  requirements:
-    _access: 'TRUE'
-oauth2_server.openid_configuration:
-  path: '/.well-known/openid-configuration'
-  defaults:
-    _controller: 'Drupal\oauth2_server\Controller\OpenidConnectDiscoveryController::configuration'
+     _controller: '\Drupal\oauth2_server\Controller\OAuth2Controller::jwk'
   requirements:
     _access: 'TRUE'
 
@@ -66,7 +66,7 @@ entity.oauth2_server.add_form:
 entity.oauth2_server.enable:
   path: '/admin/structure/oauth2-servers/manage/{oauth2_server}/enable'
   defaults:
-    _controller: 'Drupal\oauth2_server\Controller\ServerController::serverBypassEnable'
+    _controller: '\Drupal\oauth2_server\Controller\ServerController::serverBypassEnable'
   requirements:
     _permission: 'administer oauth2 server'
     _csrf_token: 'TRUE'
@@ -99,14 +99,14 @@ entity.oauth2_server.delete_form:
 entity.oauth2_server.scopes:
   path: '/admin/structure/oauth2-servers/manage/{oauth2_server}/scopes'
   defaults:
-    _controller: 'Drupal\oauth2_server\Controller\ServerScopeController::serverScopes'
-    _title_callback: 'Drupal\oauth2_server\Controller\ServerScopeController::serverScopesTitle'
+    _controller: '\Drupal\oauth2_server\Controller\ServerScopeController::serverScopes'
+    _title_callback: '\Drupal\oauth2_server\Controller\ServerScopeController::serverScopesTitle'
   requirements:
     _permission: 'administer oauth2 server'
 entity.oauth2_server.scopes.add_form:
   path: '/admin/structure/oauth2-servers/manage/{oauth2_server}/scopes/add-scope'
   defaults:
-    _controller: 'Drupal\oauth2_server\Controller\ServerScopeController::serverAddScope'
+    _controller: '\Drupal\oauth2_server\Controller\ServerScopeController::serverAddScope'
     _title: 'Add scope'
   requirements:
     _permission: 'administer oauth2 server'
@@ -115,7 +115,7 @@ entity.oauth2_server.scopes.add_form:
 entity.oauth2_server.scopes.edit_form:
   path: '/admin/structure/oauth2-servers/manage/{oauth2_server}/scopes/{oauth2_server_scope}/edit'
   defaults:
-    _controller: 'Drupal\oauth2_server\Controller\ServerScopeController::serverEditScope'
+    _controller: '\Drupal\oauth2_server\Controller\ServerScopeController::serverEditScope'
   requirements:
     _permission: 'administer oauth2 server'
   options:
@@ -123,7 +123,7 @@ entity.oauth2_server.scopes.edit_form:
 entity.oauth2_server.scopes.delete_form:
   path: '/admin/structure/oauth2-servers/manage/{oauth2_server}/scopes/{oauth2_server_scope}/delete'
   defaults:
-    _controller: 'Drupal\oauth2_server\Controller\ServerScopeController::serverDeleteScope'
+    _controller: '\Drupal\oauth2_server\Controller\ServerScopeController::serverDeleteScope'
   requirements:
     _permission: 'administer oauth2 server'
   options:
@@ -133,14 +133,14 @@ entity.oauth2_server.scopes.delete_form:
 entity.oauth2_server.clients:
   path: '/admin/structure/oauth2-servers/manage/{oauth2_server}/clients'
   defaults:
-    _controller: 'Drupal\oauth2_server\Controller\ServerClientController::serverClients'
-    _title_callback: 'Drupal\oauth2_server\Controller\ServerClientController::serverClientsTitle'
+    _controller: '\Drupal\oauth2_server\Controller\ServerClientController::serverClients'
+    _title_callback: '\Drupal\oauth2_server\Controller\ServerClientController::serverClientsTitle'
   requirements:
     _permission: 'administer oauth2 server'
 entity.oauth2_server.clients.add_form:
   path: '/admin/structure/oauth2-servers/manage/{oauth2_server}/clients/add-client'
   defaults:
-    _controller: 'Drupal\oauth2_server\Controller\ServerClientController::serverAddClient'
+    _controller: '\Drupal\oauth2_server\Controller\ServerClientController::serverAddClient'
     _title: 'Add client'
   requirements:
     _permission: 'administer oauth2 server'
@@ -149,7 +149,7 @@ entity.oauth2_server.clients.add_form:
 entity.oauth2_server.clients.edit_form:
   path: '/admin/structure/oauth2-servers/manage/{oauth2_server}/clients/{oauth2_server_client}/edit'
   defaults:
-    _controller: 'Drupal\oauth2_server\Controller\ServerClientController::serverEditClient'
+    _controller: '\Drupal\oauth2_server\Controller\ServerClientController::serverEditClient'
   requirements:
     _permission: 'administer oauth2 server'
   options:
@@ -157,7 +157,7 @@ entity.oauth2_server.clients.edit_form:
 entity.oauth2_server.clients.delete_form:
   path: '/admin/structure/oauth2-servers/manage/{oauth2_server}/clients/{oauth2_server_client}/delete'
   defaults:
-    _controller: 'Drupal\oauth2_server\Controller\ServerClientController::serverDeleteClient'
+    _controller: '\Drupal\oauth2_server\Controller\ServerClientController::serverDeleteClient'
   requirements:
     _permission: 'administer oauth2 server'
   options:

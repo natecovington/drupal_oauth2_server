@@ -5,7 +5,7 @@ package: OAuth2
 core_version_requirement: ^8.8 || ^9
 configure: oauth2_server.overview
 
-# Information added by Drupal.org packaging script on 2021-10-08
-version: '2.0.0-beta4'
+# Information added by Drupal.org packaging script on 2021-10-13
+version: '2.0.0-beta4+17-dev'
 project: 'oauth2_server'
-datestamp: 1633705953
+datestamp: 1634155968

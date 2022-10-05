@@ -81,7 +81,10 @@ class ScopeUtility implements OAuth2ScopeInterface {
 
     // Previously $query->addTag('oauth2_server_scope_access') was used but in
     // the config entities the query alter does not run. Use an alter.
-    $context = ['scopes' => &$loaded_scopes, 'server' => $this->server];
+    $context = [
+      'scopes' => &$loaded_scopes,
+      'server' => $this->server,
+    ];
     \Drupal::moduleHandler()->alter('oauth2_server_scope_access', $context);
 
     if ($loaded_scopes) {

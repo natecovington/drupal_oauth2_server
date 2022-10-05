@@ -11,6 +11,7 @@ use Drupal\Core\Session\AnonymousUserSession;
 use Drupal\user\UserInterface;
 use Drupal\file\Entity\File;
 use Drupal\Core\Url;
+use OAuth2\Encryption\Jwt;
 
 /**
  * Provides Drupal OAuth2 storage for the library.
@@ -154,6 +155,21 @@ class OAuth2Storage implements OAuth2StorageInterface {
     if ($tokens) {
       return reset($tokens);
     }
+
+    $jwt = new Jwt();
+    $decoded_token = $jwt->decode($token, NULL, FALSE);
+
+    if ($decoded_token === FALSE || empty($decoded_token['id'])) {
+      return FALSE;
+    }
+
+    /** @var \Drupal\oauth2_server\TokenInterface[] $tokens */
+    $tokens = $this->entityTypeManager->getStorage('oauth2_server_token')
+      ->loadByProperties(['token' => $decoded_token['id']]);
+    if ($tokens) {
+      return reset($tokens);
+    }
+
     return FALSE;
   }
 
@@ -777,18 +793,13 @@ class OAuth2Storage implements OAuth2StorageInterface {
     }
 
     // Allow modules to supply additional claims.
-    $claims += $this->moduleHandler->invokeAll('oauth2_server_user_claims', [
+    $claims += $this->moduleHandler->invokeAll('oauth2_server_claims', [
       'account' => $account,
       'requested_scopes' => $requested_scopes,
     ]);
 
     // Finally, allow modules to alter claims.
-    $context = [
-      'claims' => &$claims,
-      'account' => $account,
-      'requested_scopes' => $requested_scopes,
-    ];
-    $this->moduleHandler->alter('oauth2_server_user_claims', $context);
+    $this->moduleHandler->alter('oauth2_server_user_claims', $claims, $account, $requested_scopes);
     return $claims;
   }
 

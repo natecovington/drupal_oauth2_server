@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\GetResponseForExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Drupal\oauth2_server\OAuth2HelperInterface;
 use Drupal\oauth2_server\OAuth2StorageInterface;
 
 /**
@@ -56,6 +57,13 @@ class OAuth2DrupalAuthProvider implements AuthenticationProviderInterface {
   protected $time;
 
   /**
+   * The OAuth2Helper service.
+   *
+   * @var \Drupal\oauth2_server\OAuth2HelperInterface
+   */
+  protected $oauth2Helper;
+
+  /**
    * OAuth2 Drupal Auth Provider constructor.
    *
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
@@ -68,19 +76,23 @@ class OAuth2DrupalAuthProvider implements AuthenticationProviderInterface {
    *   The logger factory.
    * @param \Drupal\Component\Datetime\TimeInterface $time
    *   The time object.
+   * @param \Drupal\oauth2_server\OAuth2HelperInterface $oauth2_helper
+   *   The OAuth2Helper service.
    */
   public function __construct(
       EntityTypeManagerInterface $entity_type_manager,
       OAuth2StorageInterface $oauth2_storage,
       ConfigFactoryInterface $config_factory,
       LoggerChannelFactoryInterface $logger_factory,
-      TimeInterface $time
+      TimeInterface $time,
+      OAuth2HelperInterface $oauth2_helper
   ) {
     $this->configFactory = $config_factory;
     $this->storage = $oauth2_storage;
     $this->entityTypeManager = $entity_type_manager;
     $this->loggerFactory = $logger_factory;
     $this->time = $time;
+    $this->oauth2Helper = $oauth2_helper;
   }
 
   /**
@@ -96,44 +108,7 @@ class OAuth2DrupalAuthProvider implements AuthenticationProviderInterface {
   public function applies(Request $request) {
     // If you return TRUE and the method Authentication logic fails,
     // you will get out from Drupal navigation if you are logged in.
-    $method = [];
-
-    // Check if the client uses the "Bearer" authentication scheme
-    // to transmit the access token.
-    // See https://tools.ietf.org/html/rfc6750#section-2.1
-    if (stripos(trim($request->headers->get('authorization')), 'Bearer') !== FALSE) {
-      $method[] = t('Authorization Request Header Field');
-    }
-
-    // Check if the access token is in the entity-body of the HTTP request,
-    // and if the client adds the access token to the request-body using the
-    // "access_token" parameter.
-    // See https://tools.ietf.org/html/rfc6750#section-2.2
-    if (trim($request->headers->get('content-type')) == 'application/x-www-form-urlencoded'
-        && empty($request->query->get('access_token'))
-        && trim($request->getMethod()) !== 'GET'
-        && preg_match("/\baccess_token\b/", $request->getContent()) === 1) {
-      $method[] = t('Form-Encoded Body Parameter');
-    }
-
-    // Check if the access token is in URI of the HTTP request,
-    // the client adds the access token to the request URI query component
-    // using the "access_token" parameter.
-    // See https://tools.ietf.org/html/rfc6750#section-2.3
-    if (!empty($request->get('access_token'))
-        && preg_match("/\baccess_token\b/", $request->getContent()) === 0) {
-      $method[] = t('URI Query Parameter');
-    }
-
-    // There are three methods of sending bearer access tokens in
-    // resource requests to resource servers.
-    // Clients MUST NOT use more than one method to transmit the token in each
-    // request.
-    if (!empty($method)
-        && count($method) == 1) {
-      return TRUE;
-    }
-    return FALSE;
+    return $this->oauth2Helper->hasValidOauth2Authentication($request);
   }
 
   /**
@@ -141,15 +116,8 @@ class OAuth2DrupalAuthProvider implements AuthenticationProviderInterface {
    */
   public function authenticate(Request $request) {
     try {
-      if (!empty($request->headers->get('authorization'))) {
-        $token = $this->getInfoToken($request->headers->get('authorization'), 'token');
-      }
-      if (!empty($request->get('access_token'))) {
-        $token = $request->get('access_token');
-      }
-
-      // Determine if $token is empty.
-      if (empty($token)) {
+      $token = $this->oauth2Helper->getTokenFromRequest($request);
+      if ($token === NULL) {
         throw new \InvalidArgumentException("The client has not transmitted the token in the request.");
       }
 
@@ -228,40 +196,6 @@ class OAuth2DrupalAuthProvider implements AuthenticationProviderInterface {
       return TRUE;
     }
     return FALSE;
-  }
-
-  /**
-   * Generates keys from "Authorization" request header field.
-   *
-   * @param string|null $authorization
-   *   The "Authorization" request header field.
-   * @param string|null $key
-   *   Token / authentication_scheme.
-   *
-   * @return array|false
-   *   An array with the following keys:
-   *   - authentication_scheme: (string) HTTP Authentication Scheme.
-   *   - token: (string) $token.
-   */
-  protected function getInfoToken($authorization = NULL, $key = NULL) {
-    if (empty($authorization)) {
-      return FALSE;
-    }
-
-    @list($authentication_scheme, $token) = explode(' ', $authorization, 2);
-    if (empty($token)) {
-      return FALSE;
-    }
-    $infoToken = [
-      'authentication_scheme' => $authentication_scheme,
-      'token' => $token,
-    ];
-    if (!empty($key) && array_key_exists($key, $infoToken)) {
-      return $infoToken[$key];
-    }
-    else {
-      return $infoToken;
-    }
   }
 
 }

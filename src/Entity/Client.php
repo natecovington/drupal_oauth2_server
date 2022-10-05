@@ -37,6 +37,10 @@ use Drupal\oauth2_server\ClientInterface;
  *     "redirect_uri",
  *     "automatic_authorization",
  *     "settings",
+ *     "logo_uri",
+ *     "client_uri",
+ *     "policy_uri",
+ *     "tos_uri",
  *   }
  * )
  */
@@ -69,6 +73,34 @@ class Client extends ConfigEntityBase implements ClientInterface {
    * @var string
    */
   public $name;
+
+  /**
+   * The client URI.
+   *
+   * @var string
+   */
+  public $client_uri;
+
+  /**
+   * The client logo URI.
+   *
+   * @var string
+   */
+  public $logo_uri;
+
+  /**
+   * The policy URI.
+   *
+   * @var string
+   */
+  public $policy_uri;
+
+  /**
+   * The terms of service URI.
+   *
+   * @var string
+   */
+  public $tos_uri;
 
   /**
    * The client secret.

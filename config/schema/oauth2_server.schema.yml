@@ -109,6 +109,18 @@ oauth2_server.client.*:
     redirect_uri:
       type: string
       label: 'Redirect Uri'
+    logo_uri:
+      type: string
+      label: 'Logo URI'
+    client_uri:
+      type: string
+      label: 'Client URI'
+    policy_uri:
+      type: string
+      label: 'Policy URI'
+    tos_uri:
+      type: string
+      label: 'Terms of Service URI'
     automatic_authorization:
       type: boolean
       label: 'Automatic Authorization'
