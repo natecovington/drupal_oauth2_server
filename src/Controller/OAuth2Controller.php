@@ -401,15 +401,7 @@ class OAuth2Controller extends ControllerBase {
       Settings::getHashSalt()
     );
 
-    $response = ["keys" => [$jwk]];
-//    if (openssl_error_string()) {
-//      $this->logger->error("Error: @message", [
-//        "@code" => openssl_error_string(),
-//      ]);
-//      throw new HttpException(522, "SSL subsytem failure detected.");
-//    }
-
-    return new JsonResponse($response, 200);
+    return new JsonResponse($jwk, 200);
   }
 
   /**
